@@ -26,11 +26,11 @@ name = "test-training"
 path_dataset_config = 'dataset.json'
 path_model_config = 'model_config.json'
 path_model_ckpt_path = 'model.ckpt'
-batch_size = 8
-num_workers = 4
+batch_size = 1
+num_workers = 1
 path_save_dir = "chkpts"
 checkpoint_every = 1000
-num_gpus = 1
+num_gpus = 2
 ckpt_path = None
 
 #Get JSON config from args.model_config

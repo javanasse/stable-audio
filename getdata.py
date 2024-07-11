@@ -49,3 +49,5 @@ if __name__ == "__main__":
         else:
             shutil.rmtree(dataset_dir)
             repopulate_dataset(dataset_dir)
+    else:
+        repopulate_dataset(dataset_dir)

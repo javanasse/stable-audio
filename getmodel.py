@@ -17,3 +17,7 @@ if __name__ == "__main__":
             login()
             for file in necessary_huggingface_files:
                 hf_hub_download(repo_id="stabilityai/stable-audio-open-1.0", filename=file, local_dir="./")
+    else:
+        login()
+        for file in necessary_huggingface_files:
+            hf_hub_download(repo_id="stabilityai/stable-audio-open-1.0", filename=file, local_dir="./")
