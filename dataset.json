@@ -1,0 +1,16 @@
+{
+    "dataset_type": "audio_dir",
+    "random_crop": false,
+    "datasets": [
+        {
+            "id": "data0",
+            "path": "dataset/Glitch With Friends- Samples Vol. 2",
+            "custom_metadata_module": "dataset.py"
+        },
+        {
+            "id": "data1",
+            "path": "dataset/Glitch With Friends+",
+            "custom_metadata_module": "dataset.py"
+        }
+    ]
+}
