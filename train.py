@@ -12,7 +12,7 @@ from stable_audio_tools.training.utils import copy_state_dict
 
 from cog import Input, Path
 
-from util import unpack
+from util import unpack, print_files
 
 class ExceptionCallback(pl.Callback):
     def on_exception(self, trainer, module, err):
@@ -25,8 +25,6 @@ class ModelConfigEmbedderCallback(pl.Callback):
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         checkpoint["model_config"] = self.model_config
         
-
-
 def train(
     dataset_url: Path = Input(description="HTTPS URL of a file containg training data"),
     dataset_config: Path = Input(description="HTTPS URL of a file containing data config JSON."),
@@ -34,13 +32,10 @@ def train(
     model_config: Path = Input(description="HTTPS URL of the model config JSON."),
     batch_size: int = Input(description="Batch size.", default=8, ge=1),
     num_workers: int = Input(description="Number of workers.", default=1, ge=1),
-    checkpoint_every: int = Input(description="Save a checkpoint after this many epochs."),
-    seed: int = Input(description="random seed to use for training", default=None)
+    checkpoint_every: int = Input(description="Save a checkpoint after this many epochs.", default=1000, ge=100),
 ) -> Path:
     
     # system setup
-    MODEL_CKPT_PATH = os.path.join('model.ckpt')
-    
     SRC_DIR = os.path.join('src')
     DATA_DIR = os.path.join(SRC_DIR, 'dataset')
     CKPT_DIR = os.path.join(SRC_DIR, 'checkpoints')
@@ -53,19 +48,17 @@ def train(
     num_gpus = torch.cuda.device_count()
 
     # get data from url
-    unpack(dataset_url, DATA_DIR)
-    
-    # load checkpoint
-    if model_checkpoint:
-        print(f'downloading model at {model_checkpoint}')
-        urllib.request.urlretrieve(model_checkpoint, MODEL_CKPT_PATH)
-        print(f"model downloaded to {MODEL_CKPT_PATH}.")
+    if dataset_url:
+        print('unpacking dataset:')
+        unpack(dataset_url, DATA_DIR)
 
-    with urllib.request.urlopen(model_config) as url:
-        model_config = json.load(url)
+    with open(model_config, 'r') as f:
+        model_config = json.load(f)
 
-    with urllib.request.urlopen(dataset_config) as url:
-        dataset_config = json.load(url)
+    with open(dataset_config, 'r') as f:
+        dataset_config = json.load(f)
+        
+    print_files('.')
         
     # create dataloader
     train_dl = create_dataloader_from_config(
@@ -81,7 +74,8 @@ def train(
     model = create_model_from_config(model_config)
     
     # use checkpoint for model weights
-    copy_state_dict(model, load_ckpt_state_dict(MODEL_CKPT_PATH))
+    if model_checkpoint:
+        copy_state_dict(model, load_ckpt_state_dict(model_checkpoint))
     
     training_wrapper = create_training_wrapper_from_config(model_config, model)
     
@@ -112,6 +106,13 @@ def train(
     trainer.fit(training_wrapper, train_dl, ckpt_path=CKPT_DIR if CKPT_DIR else None)
     
     return Path(CKPT_DIR)
+
+if __name__ == "__main__":
+    print("Let's do some debuggin':")
+    train(dataset_url=None,
+          dataset_config="dataset.json",
+          model_checkpoint=None,
+          model_config="model_config.json")
 
 """"""
 
