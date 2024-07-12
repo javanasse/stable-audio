@@ -33,6 +33,7 @@ def train(
     batch_size: int = Input(description="Batch size.", default=8, ge=1),
     num_workers: int = Input(description="Number of workers.", default=1, ge=1),
     checkpoint_every: int = Input(description="Save a checkpoint after this many epochs.", default=1000, ge=100),
+    debug: bool = Input(description="Print debugging information.", default=False)
 ) -> Path:
     
     # system setup
@@ -58,7 +59,8 @@ def train(
     with open(dataset_config, 'r') as f:
         dataset_config = json.load(f)
         
-    print_files('.')
+    if debug:
+        print_files('.')
         
     # create dataloader
     train_dl = create_dataloader_from_config(
@@ -103,7 +105,8 @@ def train(
             gradient_clip_val=0.0,
             reload_dataloaders_every_n_epochs = 0
         )
-    trainer.fit(training_wrapper, train_dl, ckpt_path=CKPT_DIR if CKPT_DIR else None)
+    # trainer.fit(training_wrapper, train_dl, ckpt_path=CKPT_DIR if CKPT_DIR else None)
+    trainer.fit(training_wrapper, train_dl, ckpt_path=None)
     
     return Path(CKPT_DIR)
 
@@ -112,82 +115,8 @@ if __name__ == "__main__":
     train(dataset_url=None,
           dataset_config="dataset.json",
           model_checkpoint=None,
-          model_config="model_config.json")
-
-""""""
-
-# from getdata import repopulate_dataset
-
-# os.environ["WANDB__SERVICE_WAIT"] = "300"
-
-# def train():
-    
-#     print("downloading data:")
-#     repopulate_dataset("dataset")
-    
-#     name = "test-training"
-#     path_dataset_config = 'dataset.json'
-#     path_model_config = 'model_config.json'
-#     path_model_ckpt_path = 'model.ckpt'
-#     batch_size = 1
-#     num_workers = 1
-#     path_save_dir = "chkpts"
-#     checkpoint_every = 1000
-#     num_gpus = 2
-#     ckpt_path = None
-
-#     #Get JSON config from args.model_config
-#     with open(path_model_config) as f:
-#         model_config = json.load(f)
-
-#     with open(path_dataset_config) as f:
-#         dataset_config = json.load(f)
-
-#     train_dl = create_dataloader_from_config(
-#         dataset_config, 
-#         batch_size=batch_size, 
-#         num_workers=num_workers,
-#         sample_rate=model_config["sample_rate"],
-#         sample_size=model_config["sample_size"],
-#         audio_channels=model_config.get("audio_channels", 2),
-#     )
-
-#     model = create_model_from_config(model_config)
-
-#     copy_state_dict(model, load_ckpt_state_dict(path_model_ckpt_path))
-
-#     training_wrapper = create_training_wrapper_from_config(model_config, model)
-
-#     wandb_logger = pl.loggers.WandbLogger(project=name)
-#     wandb_logger.watch(training_wrapper)
-
-#     exc_callback = ExceptionCallback()
-
-#     if path_save_dir and isinstance(wandb_logger.experiment.id, str):
-#         checkpoint_dir = os.path.join(path_save_dir, wandb_logger.experiment.project, wandb_logger.experiment.id, "checkpoints") 
-#     else:
-#         checkpoint_dir = None
-
-#     ckpt_callback = pl.callbacks.ModelCheckpoint(every_n_train_steps=checkpoint_every, dirpath=checkpoint_dir, save_top_k=-1)
-#     save_model_config_callback = ModelConfigEmbedderCallback(model_config)
-
-#     demo_callback = create_demo_callback_from_config(model_config, demo_dl=train_dl)
-
-#     strategy = 'ddp_find_unused_parameters_true' if num_gpus > 1 else "auto" 
-
-#     trainer = pl.Trainer(
-#             devices=num_gpus,
-#             accelerator="gpu",
-#             num_nodes = 1,
-#             strategy=strategy,
-#             precision="16-mixed",
-#             accumulate_grad_batches=1, 
-#             callbacks=[ckpt_callback, demo_callback, exc_callback, save_model_config_callback],
-#             logger=wandb_logger,
-#             log_every_n_steps=1,
-#             max_epochs=10000000,
-#             default_root_dir=path_save_dir,
-#             gradient_clip_val=0.0,
-#             reload_dataloaders_every_n_epochs = 0
-#         )
-#     trainer.fit(training_wrapper, train_dl, ckpt_path=ckpt_path if ckpt_path else None)
+          model_config="model_config.json",
+          batch_size=4,
+          num_workers=1,
+          checkpoint_every=1000,
+          debug=False)
