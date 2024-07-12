@@ -1,0 +1,39 @@
+# Configuration for Cog ⚙️
+# Reference: https://github.com/replicate/cog/blob/main/docs/yaml.md
+
+build:
+  # set to true if your model requires a GPU
+  gpu: true
+  cuda: "12.2"
+
+  # a list of ubuntu apt packages to install
+  system_packages:
+    - ffmpeg
+    - unzip
+    - build-essential
+    - libeigen3-dev
+    - libyaml-dev
+    - libfftw3-dev
+    - libtag1-dev>=1.9
+    - libchromaprint-dev
+    - libsndfile-dev
+    - numactl
+
+  python_version: "3.10"
+
+  # commands run before src is copied, and after env is setup
+  run:
+    - python3 -m pip install gdown==5.2.0
+    - python3 -m pip install huggingface_hub==0.23.4
+    - python3 -m pip install pytorch_lightning==2.1.0
+    - python3 -m pip install stable_audio_tools==0.0.16
+    - python3 -m pip install torch==2.3.1
+    - python3 -m pip install torchaudio==2.3.1
+    - python3 -m pip install wandb==0.15.4
+    - python3 -m pip install sndfile==0.2.0
+    - python3 -m pip install pydantic==1.10
+  # Waiting for: https://github.com/replicate/cog/issues/223
+  #  - python3 /src/download.py
+  
+predict: "predict.py:Predictor"
+train: "train.py:train"
