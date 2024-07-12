@@ -77,6 +77,7 @@ def train(
     
     # use checkpoint for model weights
     if model_checkpoint:
+        model_checkpoint = str(model_checkpoint)
         copy_state_dict(model, load_ckpt_state_dict(model_checkpoint))
     
     training_wrapper = create_training_wrapper_from_config(model_config, model)
