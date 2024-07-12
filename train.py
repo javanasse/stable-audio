@@ -1,6 +1,7 @@
 import os
-import wandb
 import json
+import urllib
+import urllib.request
 import torch
 import pytorch_lightning as pl
 from stable_audio_tools.data.dataset import create_dataloader_from_config
@@ -24,22 +25,95 @@ class ModelConfigEmbedderCallback(pl.Callback):
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         checkpoint["model_config"] = self.model_config
         
-DATA_PATH = os.path.join('src', 'dataset')
 
-paths = [DATA_PATH]
-for path in paths:
-    if not os.path.exists(path):
-        os.makedirs(paths)
 
 def train(
-    data_url: Path = Input(description="HTTPS URL of a file containg training data"),
-    checkpoint: Path = Input(description="HTTPS URL of the model checkpoint."),
-    learning_rate: float = Input(description="learning rate, for learning!", default=1e-4, ge=0),
+    dataset_url: Path = Input(description="HTTPS URL of a file containg training data"),
+    dataset_config: Path = Input(description="HTTPS URL of a file containing data config JSON."),
+    model_checkpoint: Path = Input(description="HTTPS URL of the model checkpoint."),
+    model_config: Path = Input(description="HTTPS URL of the model config JSON."),
+    batch_size: int = Input(description="Batch size.", default=8, ge=1),
+    num_workers: int = Input(description="Number of workers.", default=1, ge=1),
+    checkpoint_every: int = Input(description="Save a checkpoint after this many epochs."),
     seed: int = Input(description="random seed to use for training", default=None)
-) -> str:
+) -> Path:
+    
+    # system setup
+    MODEL_CKPT_PATH = os.path.join('model.ckpt')
+    
+    SRC_DIR = os.path.join('src')
+    DATA_DIR = os.path.join(SRC_DIR, 'dataset')
+    CKPT_DIR = os.path.join(SRC_DIR, 'checkpoints')
+
+    dirs = [SRC_DIR, DATA_DIR, CKPT_DIR]
+    for path in dirs:
+        if not os.path.exists(path):
+            os.makedirs(path)
+            
+    num_gpus = torch.cuda.device_count()
+
     # get data from url
-    # unpack(data_url, DATA_PATH)
-    return "hehe"
+    unpack(dataset_url, DATA_DIR)
+    
+    # load checkpoint
+    if model_checkpoint:
+        print(f'downloading model at {model_checkpoint}')
+        urllib.request.urlretrieve(model_checkpoint, MODEL_CKPT_PATH)
+        print(f"model downloaded to {MODEL_CKPT_PATH}.")
+
+    with urllib.request.urlopen(model_config) as url:
+        model_config = json.load(url)
+
+    with urllib.request.urlopen(dataset_config) as url:
+        dataset_config = json.load(url)
+        
+    # create dataloader
+    train_dl = create_dataloader_from_config(
+        dataset_config, 
+        batch_size=batch_size, 
+        num_workers=num_workers,
+        sample_rate=model_config["sample_rate"],
+        sample_size=model_config["sample_size"],
+        audio_channels=model_config.get("audio_channels", 2),
+    )
+    
+    # create model
+    model = create_model_from_config(model_config)
+    
+    # use checkpoint for model weights
+    copy_state_dict(model, load_ckpt_state_dict(MODEL_CKPT_PATH))
+    
+    training_wrapper = create_training_wrapper_from_config(model_config, model)
+    
+    ckpt_callback = pl.callbacks.ModelCheckpoint(every_n_train_steps=checkpoint_every, dirpath=CKPT_DIR, save_top_k=-1)
+    
+    exc_callback = ExceptionCallback()
+    save_model_config_callback = ModelConfigEmbedderCallback(model_config)
+    
+    demo_callback = create_demo_callback_from_config(model_config, demo_dl=train_dl)
+
+    strategy = 'ddp_find_unused_parameters_true' if num_gpus > 1 else "auto" 
+
+    trainer = pl.Trainer(
+            devices=num_gpus,
+            accelerator="gpu",
+            num_nodes = 1,
+            strategy=strategy,
+            precision="16-mixed",
+            accumulate_grad_batches=1, 
+            callbacks=[ckpt_callback, demo_callback, exc_callback, save_model_config_callback],
+            logger=None,
+            log_every_n_steps=1,
+            max_epochs=10000000,
+            default_root_dir=SRC_DIR,
+            gradient_clip_val=0.0,
+            reload_dataloaders_every_n_epochs = 0
+        )
+    trainer.fit(training_wrapper, train_dl, ckpt_path=CKPT_DIR if CKPT_DIR else None)
+    
+    return Path(CKPT_DIR)
+
+""""""
 
 # from getdata import repopulate_dataset
 
